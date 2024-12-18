@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任務管理系統</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">任務管理系統</h1>
+
+        <!-- 任務管理表單 -->
+        <form id="taskForm" class="mt-4">
+            <input type="hidden" id="student_id" name="student_id" value="test1">
+
+            <!-- 任務內容 -->
+            <div class="mb-3">
+                <label for="task" class="form-label">任務內容</label>
+                <input type="text" id="task" name="task" class="form-control" placeholder="請輸入任務內容" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary">新增任務</button>
+        </form>
+
+        <div id="response" class="alert mt-4 d-none" role="alert"></div>
+
+        <!-- 任務列表 -->
+        <div class="mt-5">
+            <h2 class="text-center">任務列表</h2>
+            <div id="taskList" class="mt-4"></div>
+        </div>
+    </div>
+
+    <!-- 更新任務的 Modal -->
+    <div class="modal fade" id="updateModal" tabindex="-1" aria-labelledby="updateModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="updateModalLabel">更新任務</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="updatedTask" class="form-label">任務內容</label>
+                        <input type="text" class="form-control" id="updatedTask" placeholder="請輸入更新的任務內容">
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="completedCheck">
+                        <label class="form-check-label" for="completedCheck">已完成</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+                    <button type="button" class="btn btn-primary" id="saveUpdatedTaskBtn">儲存更新</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const studentId = '41241216'; // 固定學生編號
+        let currentTaskId = null; // 目前選擇的任務ID
+
+        // 新增任務
+        document.getElementById('taskForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const task = document.getElementById('task').value;
+            const responseDiv = document.getElementById('response');
+
+            try {
+                const response = await fetch('https://nfutest.pythonanywhere.com/todos', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ student_id: studentId, task: task })
+                });
+
+                if (response.status === 201) {
+                    const data = await response.json();
+                    responseDiv.classList.remove('d-none', 'alert-danger');
+                    responseDiv.classList.add('alert-success');
+                    responseDiv.innerHTML = `任務新增成功！<br>編號: ${data.id}<br>任務: ${data.task}<br>完成狀態: ${data.completed}`;
+                    
+                    // 新增任務後即時更新任務列表
+                    fetchTasks();
+                } else {
+                    responseDiv.classList.remove('d-none', 'alert-success');
+                    responseDiv.classList.add('alert-danger');
+                    responseDiv.innerHTML = `新增任務失敗。狀態碼: ${response.status}`;
+                }
+            } catch (error) {
+                responseDiv.classList.remove('d-none', 'alert-success');
+                responseDiv.classList.add('alert-danger');
+                responseDiv.innerHTML = `錯誤: ${error.message}`;
+            }
+        });
+
+        // 更新任務
+        async function openUpdateModal(taskId, taskContent, completed) {
+            currentTaskId = taskId; // 記錄當前更新的任務ID
+            document.getElementById('updatedTask').value = taskContent; // 預設任務內容
+            document.getElementById('completedCheck').checked = completed; // 預設完成狀態
+
+            // 顯示 Modal
+            const myModal = new bootstrap.Modal(document.getElementById('updateModal'));
+            myModal.show();
+        }
+
+        // 儲存更新的任務
+        document.getElementById('saveUpdatedTaskBtn').addEventListener('click', async function() {
+            const updatedTask = document.getElementById('updatedTask').value;
+            const isCompleted = document.getElementById('completedCheck').checked;
+            const responseDiv = document.getElementById('response');
+
+            try {
+                const response = await fetch(`https://nfutest.pythonanywhere.com/todos/${currentTaskId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        student_id: studentId,
+                        task: updatedTask,
+                        completed: isCompleted
+                    })
+                });
+
+                if (response.status === 200) {
+                    const data = await response.json();
+                    responseDiv.classList.remove('d-none', 'alert-danger');
+                    responseDiv.classList.add('alert-success');
+                    responseDiv.innerHTML = `任務更新成功！<br>編號: ${data.id}<br>任務: ${data.task}<br>完成狀態: ${data.completed}`;
+                    
+                    // 更新任務後即時更新任務列表
+                    fetchTasks();
+
+                    // 關閉 Modal
+                    const myModal = bootstrap.Modal.getInstance(document.getElementById('updateModal'));
+                    myModal.hide();
+                } else {
+                    responseDiv.classList.remove('d-none', 'alert-success');
+                    responseDiv.classList.add('alert-danger');
+                    responseDiv.innerHTML = `更新任務失敗。狀態碼: ${response.status}`;
+                }
+            } catch (error) {
+                responseDiv.classList.remove('d-none', 'alert-success');
+                responseDiv.classList.add('alert-danger');
+                responseDiv.innerHTML = `錯誤: ${error.message}`;
+            }
+        });
+
+        // 刪除任務
+        async function deleteTask(taskId) {
+            const responseDiv = document.getElementById('response');
+
+            try {
+                const response = await fetch(`https://nfutest.pythonanywhere.com/todos/${taskId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ student_id: studentId })
+                });
+
+                if (response.status === 200) {
+                    const data = await response.json();
+                    responseDiv.classList.remove('d-none', 'alert-danger');
+                    responseDiv.classList.add('alert-success');
+                    responseDiv.innerHTML = `${data.message}！任務編號: ${taskId}`;
+                    
+                    // 刪除任務後即時更新任務列表
+                    fetchTasks();
+                } else {
+                    responseDiv.classList.remove('d-none', 'alert-success');
+                    responseDiv.classList.add('alert-danger');
+                    responseDiv.innerHTML = `刪除任務失敗。狀態碼: ${response.status}`;
+                }
+            } catch (error) {
+                responseDiv.classList.remove('d-none', 'alert-success');
+                responseDiv.classList.add('alert-danger');
+                responseDiv.innerHTML = `錯誤: ${error.message}`;
+            }
+        }
+
+        // 獲取任務列表
+        async function fetchTasks() {
+            const taskListDiv = document.getElementById('taskList');
+
+            try {
+                const response = await fetch(`https://nfutest.pythonanywhere.com/todos?student_id=${studentId}`);
+
+                if (response.status === 200) {
+                    const data = await response.json();
+                    const tasks = data.todos;
+
+                    if (tasks.length > 0) {
+                        taskListDiv.innerHTML = '<ul class="list-group">' +
+                            tasks.map(task => `
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <div>
+                                        <strong>任務編號:</strong> ${task.id}<br>
+                                        <strong>任務:</strong> ${task.task}<br>
+                                        <strong>完成狀態:</strong> ${task.completed ? '已完成' : '未完成'}
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-warning btn-sm" onclick="openUpdateModal(${task.id}, '${task.task}', ${task.completed})">更新</button>
+                                        <button class="btn btn-danger btn-sm" onclick="deleteTask(${task.id})">刪除</button>
+                                    </div>
+                                </li>`).join('') +
+                            '</ul>';
+                    } else {
+                        taskListDiv.innerHTML = '<div class="alert alert-info" role="alert">目前沒有任務。</div>';
+                    }
+                } else {
+                    taskListDiv.innerHTML = '<div class="alert alert-danger" role="alert">獲取任務列表失敗。狀態碼: ' + response.status + '</div>';
+                }
+            } catch (error) {
+                taskListDiv.innerHTML = `<div class="alert alert-danger" role="alert">錯誤: ${error.message}</div>`;
+            }
+        }
+
+        // 頁面加載後獲取任務列表
+        window.onload = fetchTasks;
+    </script>
+</body>
+</html>
